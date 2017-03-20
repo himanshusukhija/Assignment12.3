@@ -1,0 +1,97 @@
+What is meant by FlumeNG ?
+Ans:Flume NG is a refactoring of Flume and was originally tracked in FLUME-728. From the JIRA's description:
+To solve certain known issues and limitations, Flume requires a refactoring of some core classes and systems. This bug is a parent
+issue to track the development of a "Flume NG" - a poorly named, but necessary refactoring. Subtasks should be added to track
+individual systems and components.
+The following known issues are specifically to be addressed:
+Code complexity; Flume has evolved over the last few years and has a fair amount of extraneous code.
+Core component lifecycle standardization and control code (e.g. anything that can be start()ed or stop()ed, sources, sinks).
+(Static) Configuration access throughout the code base.
+Drastic simplification of common data paths (e.g. durability as an element of the source rather than a disconnected sink).
+Heartbeat and master rearchitecture.
+Renaming packages to org.apache.flume.
+
+
+ARCHITECTURE
+Flume NG's high level architecture solidifies a few concepts from Flume OG and drastically simplifies others. As our goals state, 
+we are focused on a streamlined codebase that meets the common use cases in a "batteries included," easy to use, easy to extend 
+package. Flume NG retains Flume OG's general approach to data transfer and handling (a N:M push model data transport, where N is big
+and M is significantly smaller).
+The major components of the system are:
+
+Event
+An event is a singular unit of data that can be transported by Flume NG. Events are akin to messages in JMS and similar messaging 
+systems and are generally small (on the order of a few bytes to a few kilobytes). Events are also commonly single records in a larger 
+dataset. An event is made up of headers and a body; the former is a key / value map and the latter, a arbitrary byte array
+Can Flume provides 100 % reliability to the data flow?
+Ans: Yes, it provides end to end reliability of data.By default Flume uses a transactional approach in the data flow.Sources and sinks  
+encapsulated in a transactional repository provides by the channels.The channels responsible to pass reliably from end to end in the flow.
+So it provides 100% reliability to data flow.
+
+Source
+A source of data from which Flume NG receives data. Sources can be pollable or event driven. Pollable sources, like they sound, are 
+repeatedly polled by Flume NG source runners where as event driven sources are expected to be driven by some other force. An example 
+of a pollable source is the sequence generator which simple generates events whose body is a monotonically increasing integer. Event 
+driven sources include the Avro source which accepts Avro RPC calls and converts the RPC payload into a Flume event and the netcat 
+source which mimics the nc command line tool running in server mode. Sources are a user accessible API extension point.
+
+Sink
+A sink is the counterpart to the source in that it is a destination for data in Flume NG. Some of the builtin sinks that are included 
+with Flume NG are the Hadoop Distributed File System sink which writes events to HDFS in various ways, the logger sink which simply 
+logs all events received, and the null sink which is Flume NG's version of /dev/null. Sinks are a user accessible API extension point.
+
+Channel
+A channel is a conduit for events between a source and a sink. Channels also dictate the durability of event delivery between a source
+and a sink. For instance, a channel may be in memory, which is fast but makes no guarantee against data loss, or it can be fully
+durable (and thus reliable) where every event is guaranteed to be delivered to the connected sink even in failure cases like power
+loss. Channels are a user accessible API extension point.
+
+Source and Sink Runners
+Flume NG uses an internal component called the source or sink runner. The runner is mostly responsible for driving the source or sink
+and is mostly invisible to the end user. Developers of sources and sinks may need to understand the details of runners and the 
+difference between pollable and event driven sources, for instance, but shouldn't usually matter. Every source or sink is wrapped and 
+controlled by a runner.
+
+Agent
+Flume NG generalizes the notion of an agent. An agent is any physical JVM running Flume NG. Flume OG users should discard previous 
+notions of an agent and mentally connect this term to Flume OG's "physical node." NG no longer uses the physical / logical node
+terminology from Flume OG. A single NG agent can run any number of sources, sinks, and channels between them.
+
+Configuration Provider
+Flume NG has a pluggable configuration system called the configuration provider. By default, Flume NG ships with a Java property file
+based configuration system that is both simple and easy to generate programmatically. Flume OG has a centralized configuration system 
+with a master and ZooKeeper for coordination and we recognize this is very appealing to some users where as others see it as overhead 
+they simply don't want. We opted to make this a pluggable extension point and ship a basic implementation that would let many users get
+started quickly and easily. There's almost certainly enough desire for a similar implementation to that of Flume OG, but it isn't yet
+implemented. Users may also implement arbitrary plugins to integrate with any type of configuration system (JSON files, a shared
+RDBMS, a central system with ZooKeeper, and so forth). We see this as something more interesting to system integrators.
+
+Client
+The client isn't necessarily a Flume NG component as much as something that connects to Flume NG and sends data to a source.
+One popular and good example of a client would be a logging package like a log4j appender that directly sends events to Flume NG's
+Avro source. Another example might be a syslog daemon.
+
+Can Flume can distributes data to multiple destinations?
+Ans: Yes it support multiplexing flow.The event flows from one sources to multiple channels and multiple destinations.Its achieved by
+defining a flow multiplexer.
+
+Explain about the different channel types in Flume. And which channel type is
+faster?
+There are different channels in flume Some of them are-
+MEMORY Channel – Events are read from the source into memory and passed to the sink. It’s ideal for flows that need higher throughput 
+and are prepared to lose the staged data in the event of a agent failures.
+
+JDBC Channel – JDBC Channel stores the events in an embedded Derby database.The JDBC channel currently supports embedded Derby.
+This is a durable channel that’s ideal for flows where recoverability is important. Required properties are in bold.
+
+Kafka Channel - The events are stored in a Kafka cluster (must be installed separately). Kafka provides high availability and replication
+, so in case an agent or a kafka broker crashes, the events are immediately available to other sinks
+
+FILE Channel –File Channel writes the contents to a file on the file system after reading the event from a source. The file is deleted 
+only  after the contents are successfully delivered to the sink.FileChannel is stored in the flume-file-channel module of the Flume
+project and it's Java package name is org.apache.flume.channel.file. The queue described above is named FlumeEventQueue and the WAL is 
+named Log. The queue itself is a circular array and is backed by a Memory Mapped File while the WAL is a set of files written and read
+from using the LogFile class and it's subclasses.
+
+MEMORY Channel is the fastest channel among the three however has the risk of data loss. The channel that you choose completely depends 
+on the nature of the big data application and the value of each event.
